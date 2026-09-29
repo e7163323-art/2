@@ -9,10 +9,14 @@ for i in range(size // 2, 0, -1):
     t = i / (size / 2)
     color = (int(43 + 60 * (1 - t)), int(108 + 40 * (1 - t)), 246, 255)
     d.ellipse([size / 2 - i, size / 2 - i, size / 2 + i, size / 2 + i], fill=color)
-try:
-    font = ImageFont.truetype("C:/Windows/Fonts/segoeuib.ttf", 110)
-except OSError:
-    font = ImageFont.load_default()
+font = None
+for name in ("C:/Windows/Fonts/segoeuib.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", "DejaVuSans-Bold.ttf"):
+    try:
+        font = ImageFont.truetype(name, 110)
+        break
+    except OSError:
+        continue
+font = font or ImageFont.load_default()
 d.text((size / 2, size / 2), "AI", fill="white", font=font, anchor="mm")
 out = Path(__file__).resolve().parent.parent / "assets" / "gaon.ico"
 out.parent.mkdir(exist_ok=True)

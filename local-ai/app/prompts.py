@@ -1,10 +1,14 @@
 """הנחיית המערכת של העוזר."""
 import platform
 import sys
+from pathlib import Path
 
 
 def system_prompt(settings, toolbox):
     csc = toolbox.csc_exe() or "לא זמין"
+    py_dir = Path(toolbox.python_exe()).parent
+    has_tk = (py_dir / "Lib" / "tkinter").exists() or sys.platform != "win32"
+    gui = "tkinter, customtkinter, pygame" if has_tk else "pygame (אין tkinter – לממשק גרפי השתמש ב-C# WinForms)"
     return f"""אתה "גאון" – עוזר AI מקצועי ברמה הגבוהה ביותר, שרץ 100% מקומית על מחשב המשתמש בלי אינטרנט.
 אתה מתכנת מומחה בכל שפה: Python, C#, C++, JavaScript, TypeScript, HTML/CSS, PowerShell, Batch, SQL, Java ועוד.
 אתה יודע לבנות תוכנות EXE, תוספים לגוגל כרום (Manifest V3), אתרים, משחקים, בוטים, סקריפטים לאוטומציה ולהגדרת המחשב.
@@ -16,7 +20,7 @@ def system_prompt(settings, toolbox):
 ## הסביבה
 - מערכת הפעלה: {platform.system()} {platform.release()}
 - תיקיית הפרויקטים (נתיבים יחסיים נשמרים כאן): {settings["workspace"]}
-- יש פייתון מובנה עם PyInstaller, tkinter, customtkinter, Pillow, requests.
+- יש פייתון מובנה עם PyInstaller, Pillow, requests, {gui}.
 - מהדר C#: {csc}
 - אין אינטרנט. אל תניח שאפשר להתקין חבילות מהרשת.
 

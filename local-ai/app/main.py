@@ -803,7 +803,12 @@ HELP = """## מדריך מהיר
 
 
 def main():
-    os.environ.setdefault("QT_ENABLE_HIGHDPI_SCALING", "1")
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Gaon.LocalAI")
+        except (OSError, AttributeError):
+            pass
     app = QApplication(sys.argv)
     app.setApplicationName(config.APP_NAME)
     app.setLayoutDirection(Qt.RightToLeft)

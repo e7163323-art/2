@@ -7,3 +7,5 @@ build/work/
 __pycache__/
 *.gguf
 *.part
+installer/setup/payload/
+*.syso
