@@ -287,6 +287,8 @@ function Install {
         $dest = Join-Path "$dir\models" $m.file
         if (-not (Test-Path $dest)) {
             $free = (Get-PSDrive ($dir.Substring(0, 1))).Free / 1GB
+            try { $fsType = (Get-Volume -DriveLetter $dir.Substring(0, 1)).FileSystem } catch { $fsType = '' }
+            if ($fsType -eq 'FAT32') { throw "הכונן $($dir.Substring(0, 1)): מפורמט ב-FAT32 ולא יכול לשמור קובץ גדול מ-4GB.`nבחר תיקיית התקנה בכונן C (למשל C:\Gaon) והפעל שוב." }
             if ($free -lt $m.gb + 1) { throw ("אין מספיק מקום בכונן: צריך {0:N0}GB ויש {1:N0}GB." -f ($m.gb + 1), $free) }
             $url = "https://huggingface.co/$($m.repo)/resolve/main/$($m.file)?download=true"
             Download $url $dest "המודל $($m.file)" ([int64]($m.gb * 1e9))
