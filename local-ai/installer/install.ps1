@@ -159,20 +159,50 @@ function Wait-Proc($p, $label, $destFile = $null, $expected = 0) {
     return $p.ExitCode
 }
 
+function Download-DotNet($url, $part, $label, $expectedBytes) {
+    Log "מנסה דרך הורדה חלופית…"
+    $wc = New-Object System.Net.WebClient
+    $wc.Headers.Add('User-Agent', 'Gaon-Setup/1.0')
+    if (Test-Path $part) { Remove-Item $part -Force }
+    $task = $wc.DownloadFileTaskAsync($url, $part)
+    while (-not $task.IsCompleted) {
+        if ($script:cancelled) { $wc.CancelAsync(); throw 'ההתקנה בוטלה על ידי המשתמש.' }
+        if ($expectedBytes -gt 0 -and (Test-Path $part)) {
+            $size = (Get-Item $part).Length
+            $pct = [math]::Min(100, [int](100 * $size / $expectedBytes))
+            $progress.Style = 'Continuous'
+            $progress.Value = $pct
+            $status.Text = '{0} – {1:N2}GB מתוך {2:N2}GB ({3}%)' -f $label, ($size / 1GB), ($expectedBytes / 1GB), $pct
+        } else { $progress.Style = 'Marquee' }
+        Pump
+        Start-Sleep -Milliseconds 200
+    }
+    $progress.Style = 'Continuous'
+    if ($task.IsFaulted) {
+        $e = $task.Exception.InnerException
+        while ($e.InnerException) { $e = $e.InnerException }
+        throw "ההורדה נכשלה: $label`n$($e.Message)"
+    }
+}
+
 function Download($url, $dest, $label, $expectedBytes = 0) {
     Set-Status "מוריד: $label"
     $part = "$dest.part"
-    $cargs = @('-L', '--fail', '-C', '-', '--retry', '20', '--retry-delay', '3', '-s', '-S',
+    # --ssl-no-revoke: מונע את שגיאה 35 כשבדיקת אישורי האבטחה נחסמת (אנטי-וירוס/רשת)
+    $cargs = @('-L', '--fail', '--ssl-no-revoke', '-C', '-', '--retry', '10', '--retry-delay', '3', '-s', '-S',
               '-A', 'Gaon-Setup/1.0', '-o', "`"$part`"", "`"$url`"")
-    for ($try = 1; $try -le 5; $try++) {
-        $p = Start-Process -FilePath 'curl.exe' -ArgumentList $cargs -PassThru -WindowStyle Hidden
-        $code = Wait-Proc $p $label $part $expectedBytes
-        if ($code -eq 0) { break }
-        Log "curl החזיר קוד $code – מנסה שוב ($try)"
-        Check-Cancel
-        Start-Sleep -Seconds 3
+    $code = -1
+    if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
+        for ($try = 1; $try -le 3; $try++) {
+            $p = Start-Process -FilePath 'curl.exe' -ArgumentList $cargs -PassThru -WindowStyle Hidden
+            $code = Wait-Proc $p $label $part $expectedBytes
+            if ($code -eq 0) { break }
+            Log "curl החזיר קוד $code – מנסה שוב ($try)"
+            Check-Cancel
+            Start-Sleep -Seconds 2
+        }
     }
-    if ($code -ne 0) { throw "ההורדה נכשלה: $label (קוד $code). בדוק חיבור לאינטרנט והפעל שוב – ההורדה תמשיך מאותה נקודה." }
+    if ($code -ne 0) { Download-DotNet $url $part $label $expectedBytes }
     Move-Item -Force $part $dest
 }
 
