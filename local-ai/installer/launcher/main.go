@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"syscall"
 
 	"gaon/installer/winapi"
 )
@@ -27,7 +26,6 @@ func main() {
 	}
 	cmd := exec.Command(pyw, script)
 	cmd.Dir = base
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	if err := cmd.Start(); err != nil {
 		winapi.Error("גאון", "לא הצלחתי להפעיל את התוכנה:\n"+err.Error())
 	}

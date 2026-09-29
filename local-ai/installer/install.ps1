@@ -324,4 +324,7 @@ $go.Add_Click({
 $form.Add_FormClosing({ param($s, $e) if ($script:busy) { $script:cancelled = $true; $e.Cancel = $true } })
 
 Log "התחלת אשף ההתקנה. זיכרון: ${RamGB}GB"
+$form.WindowState = 'Normal'
+$form.ShowInTaskbar = $true
+$form.Add_Shown({ $form.TopMost = $true; $form.Activate(); $form.TopMost = $false })
 [void]$form.ShowDialog()

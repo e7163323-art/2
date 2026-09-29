@@ -17,9 +17,9 @@ sed '1s/^\xEF\xBB\xBF//' install.ps1 >> "$PAY/install.ps1"
 
 export GOOS=windows GOARCH=amd64 CGO_ENABLED=0
 RSRC="go run github.com/akavel/rsrc@v0.10.2"
-GOOS= GOARCH= $RSRC -arch amd64 -ico "$ROOT/assets/gaon.ico" -o launcher/rsrc_windows_amd64.syso
-GOOS= GOARCH= $RSRC -arch amd64 -ico "$ROOT/assets/gaon.ico" -o setup/rsrc_windows_amd64.syso
-go build -trimpath -ldflags "-s -w -H windowsgui" -o "$PAY/Gaon.exe" ./launcher
-go build -trimpath -ldflags "-s -w -H windowsgui" -o "$OUT/Gaon-Setup.exe" ./setup
+GOOS= GOARCH= $RSRC -arch amd64 -manifest app.manifest -ico "$ROOT/assets/gaon.ico" -o launcher/rsrc_windows_amd64.syso
+GOOS= GOARCH= $RSRC -arch amd64 -manifest app.manifest -ico "$ROOT/assets/gaon.ico" -o setup/rsrc_windows_amd64.syso
+go build -trimpath -ldflags "-H windowsgui" -o "$PAY/Gaon.exe" ./launcher
+go build -trimpath -ldflags "-H windowsgui" -o "$OUT/Gaon-Setup.exe" ./setup
 rm -f launcher/*.syso setup/*.syso
 ls -la "$OUT/Gaon-Setup.exe"
