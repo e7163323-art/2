@@ -1,0 +1,9 @@
+data/
+models/
+פרויקטים/
+assets/
+build/dist/
+build/work/
+__pycache__/
+*.gguf
+*.part
