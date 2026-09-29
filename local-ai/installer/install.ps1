@@ -14,7 +14,7 @@ function Log($t) {
 }
 
 $PyVer = '3.11.9'
-$GhRepo = 'e7163323-art/2'   # מאגר ה-GitHub שבו נשמר עותק של המודל
+$GhRepos = @('e7163323-art/AXD', 'e7163323-art/2')   # מאגרי GitHub שבהם נשמר עותק של המודל
 $Models = @(
     @{ name = 'Qwen2.5-Coder 32B – מומלץ (19.9GB, צריך 24GB זיכרון)'; repo = 'bartowski/Qwen2.5-Coder-32B-Instruct-GGUF'; file = 'Qwen2.5-Coder-32B-Instruct-Q4_K_M.gguf'; gb = 19.9; ram = 24 },
     @{ name = 'Qwen2.5-Coder 32B – איכות מקסימלית (23.3GB, צריך 32GB זיכרון)'; repo = 'bartowski/Qwen2.5-Coder-32B-Instruct-GGUF'; file = 'Qwen2.5-Coder-32B-Instruct-Q5_K_M.gguf'; gb = 23.3; ram = 32 },
@@ -354,8 +354,14 @@ function Install {
             # מקור ראשון: עותק ב-GitHub (מחולק לחלקים) – עובד גם באינטרנט מסונן
             try {
                 Set-Status 'בודק אם יש עותק של המודל ב-GitHub…'
-                $ghRel = Invoke-RestMethod -UseBasicParsing "https://api.github.com/repos/$GhRepo/releases/tags/gaon-models" -Headers @{ 'User-Agent' = 'Gaon-Setup' }
-                $parts = @($ghRel.assets | Where-Object { $_.name -like "$($m.file).part*" } | Sort-Object name)
+                $parts = @()
+                foreach ($gr in $GhRepos) {
+                    try {
+                        $ghRel = Invoke-RestMethod -UseBasicParsing "https://api.github.com/repos/$gr/releases/tags/gaon-models" -Headers @{ 'User-Agent' = 'Gaon-Setup' }
+                        $parts = @($ghRel.assets | Where-Object { $_.name -like "$($m.file).part*" } | Sort-Object name)
+                        if ($parts.Count -gt 0) { Log "נמצא עותק של המודל ב-$gr"; break }
+                    } catch { Log "אין עותק ב-$gr" }
+                }
                 if ($parts.Count -gt 0) {
                     $i = 0
                     foreach ($pa in $parts) {
