@@ -15,6 +15,7 @@ var (
 
 const (
 	mbIconError  = 0x10
+	mbIconInfo   = 0x40
 	mbRight      = 0x80000
 	mbRTLReading = 0x100000
 )
@@ -24,4 +25,11 @@ func Error(title, text string) {
 	t, _ := syscall.UTF16PtrFromString(title)
 	m, _ := syscall.UTF16PtrFromString(text)
 	messageBox.Call(0, uintptr(unsafe.Pointer(m)), uintptr(unsafe.Pointer(t)), mbIconError|mbRight|mbRTLReading)
+}
+
+// Info מציג הודעת מידע בעברית.
+func Info(title, text string) {
+	t, _ := syscall.UTF16PtrFromString(title)
+	m, _ := syscall.UTF16PtrFromString(text)
+	messageBox.Call(0, uintptr(unsafe.Pointer(m)), uintptr(unsafe.Pointer(t)), mbIconInfo|mbRight|mbRTLReading)
 }

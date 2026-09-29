@@ -42,8 +42,17 @@ MODELS = [
         "repo": "bartowski/Qwen2.5-Coder-7B-Instruct-GGUF",
         "file": "Qwen2.5-Coder-7B-Instruct-Q8_0.gguf",
         "size_gb": 8.1,
-        "ram_gb": 12,
-        "desc": "למחשבים עם 8-16GB זיכרון. איכות נמוכה יותר.",
+        "ram_gb": 16,
+        "desc": "למחשבים עם 16GB זיכרון.",
+    },
+    {
+        "id": "qwen-coder-7b-q5",
+        "name": "Qwen2.5-Coder 7B – למחשבים עם 8-12GB (Q5_K_M)",
+        "repo": "bartowski/Qwen2.5-Coder-7B-Instruct-GGUF",
+        "file": "Qwen2.5-Coder-7B-Instruct-Q5_K_M.gguf",
+        "size_gb": 5.4,
+        "ram_gb": 8,
+        "desc": "מתאים למחשבים עם 8-12GB זיכרון. כותב קוד טוב, קצת פחות חכם מהגדולים.",
     },
 ]
 
