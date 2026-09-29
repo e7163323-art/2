@@ -265,23 +265,45 @@ function Install {
     # 3. מנוע ה-AI (llama.cpp)
     if (-not (Test-Path "$dir\engine\cpu\llama-server.exe")) {
         Set-Status 'בודק את הגרסה האחרונה של מנוע ה-AI…'
-        $rel = Invoke-RestMethod -UseBasicParsing 'https://api.github.com/repos/ggml-org/llama.cpp/releases/latest' -Headers @{ 'User-Agent' = 'Gaon-Setup' }
+        $releases = Invoke-RestMethod -UseBasicParsing 'https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=15' -Headers @{ 'User-Agent' = 'Gaon-Setup' }
+        function Find-Asset($rel, $kind) {
+            foreach ($a in $rel.assets) {
+                $n = $a.name.ToLower()
+                if (-not $n.EndsWith('.zip') -or $n -notmatch 'win' -or $n -match 'arm64' -or $n -match '^cudart') { continue }
+                if ($n -notmatch 'x64|x86_64|amd64') { continue }
+                switch ($kind) {
+                    'cpu'    { if ($n -match 'cpu' -or ($n -match 'avx2' -and $n -notmatch 'cuda|vulkan|hip|sycl|opencl')) { return $a } }
+                    'vulkan' { if ($n -match 'vulkan') { return $a } }
+                    'cuda'   { if ($n -match 'cuda-1\d') { return $a } }
+                }
+            }
+            return $null
+        }
+        $rel = $null
+        foreach ($r in $releases) { if (Find-Asset $r 'cpu') { $rel = $r; break } }
+        if (-not $rel) {
+            Log 'קבצים שנמצאו בגרסה האחרונה:'
+            foreach ($a in $releases[0].assets) { if ($a.name -match 'win') { Log "  $($a.name)" } }
+            throw 'לא נמצא מנוע AI להורדה. צלם את רשימת ההודעות ושלח לי.'
+        }
         Log "llama.cpp $($rel.tag_name)"
-        $want = [ordered]@{ cpu = 'bin-win-cpu-x64\.zip$'; vulkan = 'bin-win-vulkan-x64\.zip$' }
+        $want = [ordered]@{ cpu = 'cpu'; vulkan = 'vulkan' }
         $nvidia = Test-Path "$env:SystemRoot\System32\nvcuda.dll"
-        if ($nvidia) { $want['cuda'] = '^llama-.*bin-win-cuda-12\.\d+-x64\.zip$' }
+        if ($nvidia) { $want['cuda'] = 'cuda' }
         foreach ($k in $want.Keys) {
-            $asset = $rel.assets | Where-Object { $_.name -match $want[$k] } | Select-Object -First 1
-            if (-not $asset) { Log "לא נמצא מנוע $k"; if ($k -eq 'cpu') { throw 'לא נמצא מנוע AI להורדה.' }; continue }
+            $asset = Find-Asset $rel $want[$k]
+            if (-not $asset) { Log "לא נמצא מנוע $k – ממשיך בלעדיו"; continue }
+            Log "מנוע $($k): $($asset.name)"
             $zip = Join-Path $dl $asset.name
             if (-not (Test-Path $zip)) { Download $asset.browser_download_url $zip "מנוע AI ($k)" $asset.size }
             $tmp = Join-Path $dl "eng_$k"
             Expand-Archive $zip $tmp -Force
             $server = Get-ChildItem $tmp -Recurse -Filter llama-server.exe | Select-Object -First 1
+            if (-not $server) { Log "אין llama-server.exe בתוך $($asset.name)"; if ($k -eq 'cpu') { throw 'קובץ המנוע לא תקין.' }; continue }
             New-Item -ItemType Directory -Force "$dir\engine\$k" | Out-Null
             Copy-Item "$($server.DirectoryName)\*" "$dir\engine\$k" -Recurse -Force
             if ($k -eq 'cuda') {
-                $cv = [regex]::Match($asset.name, 'cuda-(12\.\d+)').Groups[1].Value
+                $cv = [regex]::Match($asset.name, 'cuda-(\d+\.\d+)').Groups[1].Value
                 $rt = $rel.assets | Where-Object { $_.name -match "^cudart-.*win-cuda-$([regex]::Escape($cv))-x64\.zip$" } | Select-Object -First 1
                 if ($rt) {
                     $rz = Join-Path $dl $rt.name
