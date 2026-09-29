@@ -317,7 +317,7 @@ class ModelManager(QDialog):
             return
         self.current = m
         br = self.win.bridge
-        self.dl = catalog.Downloader(catalog.model_url(m), catalog.model_path(self.s["models_dir"], m),
+        self.dl = catalog.Downloader(catalog.model_urls(m), catalog.model_path(self.s["models_dir"], m),
                                      lambda d, t, sp: br.dl_progress.emit(int(d / 1e6), int(t / 1e6), sp),
                                      lambda ok, msg: br.dl_done.emit(ok, msg))
         self.progress.setVisible(True)

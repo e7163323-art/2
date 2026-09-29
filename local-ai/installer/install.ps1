@@ -342,8 +342,30 @@ function Install {
             try { $fsType = (Get-Volume -DriveLetter $dir.Substring(0, 1)).FileSystem } catch { $fsType = '' }
             if ($fsType -eq 'FAT32') { throw "הכונן $($dir.Substring(0, 1)): מפורמט ב-FAT32 ולא יכול לשמור קובץ גדול מ-4GB.`nבחר תיקיית התקנה בכונן C (למשל C:\Gaon) והפעל שוב." }
             if ($free -lt $m.gb + 1) { throw ("אין מספיק מקום בכונן: צריך {0:N0}GB ויש {1:N0}GB." -f ($m.gb + 1), $free) }
-            $url = "https://huggingface.co/$($m.repo)/resolve/main/$($m.file)?download=true"
-            Download $url $dest "המודל $($m.file)" ([int64]($m.gb * 1e9))
+            $base = $m.file.ToLower() -replace '\.gguf$', ''
+            $msRepo = ($m.repo -replace '^bartowski/', 'Qwen/')
+            $urls = @(
+                "https://huggingface.co/$($m.repo)/resolve/main/$($m.file)?download=true",
+                "https://hf-mirror.com/$($m.repo)/resolve/main/$($m.file)?download=true",
+                "https://modelscope.cn/models/$msRepo/resolve/master/$base.gguf"
+            )
+            $ok = $false; $lastErr = ''
+            foreach ($u in $urls) {
+                try {
+                    Log "מנסה להוריד מ: $(([uri]$u).Host)"
+                    Download $u $dest "המודל $($m.file)" ([int64]($m.gb * 1e9))
+                    $ok = $true; break
+                } catch {
+                    $lastErr = $_.Exception.Message
+                    Log "לא הצליח: $lastErr"
+                    Check-Cancel
+                }
+            }
+            if (-not $ok) {
+                throw ("לא הצלחתי להוריד את המודל מאף אתר.`n$lastErr`n`n" +
+                       "כנראה שסינון האינטרנט חוסם את האתרים huggingface.co ו-hf-mirror.com.`n" +
+                       "אפשר לבקש מספק הסינון לפתוח אותם, או להוריד את הקובץ במחשב אחר ולשים אותו בתיקייה models.")
+            }
         }
         New-Item -ItemType Directory -Force "$dir\data" | Out-Null
         $settings = @{ model_file = $dest } | ConvertTo-Json

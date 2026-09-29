@@ -3,10 +3,9 @@ import os
 import sys
 import threading
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
-
-HF = "https://huggingface.co/{repo}/resolve/main/{file}?download=true"
 
 MODELS = [
     {
@@ -57,8 +56,18 @@ MODELS = [
 ]
 
 
-def model_url(m):
-    return HF.format(repo=m["repo"], file=m["file"])
+MIRRORS = [
+    "https://huggingface.co/{repo}/resolve/main/{file}?download=true",
+    "https://hf-mirror.com/{repo}/resolve/main/{file}?download=true",
+]
+
+
+def model_urls(m):
+    """כמה אתרי הורדה – אם אחד חסום (למשל בסינון אינטרנט) עוברים לבא."""
+    urls = [u.format(repo=m["repo"], file=m["file"]) for u in MIRRORS]
+    official = m["repo"].replace("bartowski/", "Qwen/")
+    urls.append(f"https://modelscope.cn/models/{official}/resolve/master/{m['file'].lower()}")
+    return urls
 
 
 def model_path(models_dir, m) -> Path:
@@ -103,8 +112,9 @@ def recommend(ram_gb: float):
 class Downloader:
     """הורדה ברקע לקובץ .part עם אפשרות המשך אחרי ניתוק."""
 
-    def __init__(self, url, dest: Path, on_progress, on_done):
-        self.url = url
+    def __init__(self, urls, dest: Path, on_progress, on_done):
+        self.urls = list(urls)
+        self.url = self.urls[0]
         self.dest = Path(dest)
         self.part = self.dest.with_suffix(self.dest.suffix + ".part")
         self.on_progress = on_progress
@@ -126,6 +136,16 @@ class Downloader:
                     return
                 if self._cancel.is_set():
                     break
+            except urllib.error.HTTPError as e:
+                if e.code in (401, 403, 404, 451) and self.urls.index(self.url) + 1 < len(self.urls):
+                    self.url = self.urls[self.urls.index(self.url) + 1]
+                    continue
+                if e.code in (401, 403, 404, 451):
+                    self.on_done(False, f"ההורדה נחסמה ({e.code}). כנראה שסינון האינטרנט חוסם את אתרי המודלים.\n"
+                                        "אפשר להוריד את הקובץ במחשב אחר ולבחור 'קובץ GGUF קיים'.")
+                    return
+                retries += 1
+                time.sleep(min(30, 2 * retries))
             except Exception as e:  # noqa: BLE001 - רשת יכולה להיכשל בכל דרך
                 retries += 1
                 if retries > 20:
