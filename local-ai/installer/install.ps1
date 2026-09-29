@@ -271,7 +271,9 @@ function Install {
     if ($desk.Checked) { $targets += [Environment]::GetFolderPath('Desktop') }
     foreach ($t in $targets) {
         $lnk = $shell.CreateShortcut((Join-Path $t 'גאון - עוזר AI מקומי.lnk'))
-        $lnk.TargetPath = "$dir\Gaon.exe"
+        # קיצור ישיר לפייתון – עובד גם אם אנטי-וירוס חוסם את Gaon.exe
+        $lnk.TargetPath = "$dir\runtime\python\pythonw.exe"
+        $lnk.Arguments = "`"$dir\app\main.py`"
         $lnk.WorkingDirectory = $dir
         $lnk.IconLocation = "$dir\assets\gaon.ico"
         $lnk.Description = 'עוזר AI מקומי בעברית'
@@ -302,7 +304,10 @@ function Install {
 
 $script:busy = $false
 $go.Add_Click({
-    if ($script:done) { Start-Process "$($script:done)\Gaon.exe"; $form.Close(); return }
+    if ($script:done) {
+        Start-Process -FilePath "$($script:done)\runtime\python\pythonw.exe" -ArgumentList "`"$($script:done)\app\main.py`"" -WorkingDirectory $script:done
+        $form.Close(); return
+    }
     $script:busy = $true
     $go.Enabled = $false; $dirBox.Enabled = $false; $browse.Enabled = $false; $modelBox.Enabled = $false
     try {
