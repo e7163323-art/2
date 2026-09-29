@@ -14,6 +14,7 @@ function Log($t) {
 }
 
 $PyVer = '3.11.9'
+$GhRepo = 'e7163323-art/2'   # מאגר ה-GitHub שבו נשמר עותק של המודל
 $Models = @(
     @{ name = 'Qwen2.5-Coder 32B – מומלץ (19.9GB, צריך 24GB זיכרון)'; repo = 'bartowski/Qwen2.5-Coder-32B-Instruct-GGUF'; file = 'Qwen2.5-Coder-32B-Instruct-Q4_K_M.gguf'; gb = 19.9; ram = 24 },
     @{ name = 'Qwen2.5-Coder 32B – איכות מקסימלית (23.3GB, צריך 32GB זיכרון)'; repo = 'bartowski/Qwen2.5-Coder-32B-Instruct-GGUF'; file = 'Qwen2.5-Coder-32B-Instruct-Q5_K_M.gguf'; gb = 23.3; ram = 32 },
@@ -350,7 +351,38 @@ function Install {
                 "https://modelscope.cn/models/$msRepo/resolve/master/$base.gguf"
             )
             $ok = $false; $lastErr = ''
+            # מקור ראשון: עותק ב-GitHub (מחולק לחלקים) – עובד גם באינטרנט מסונן
+            try {
+                Set-Status 'בודק אם יש עותק של המודל ב-GitHub…'
+                $ghRel = Invoke-RestMethod -UseBasicParsing "https://api.github.com/repos/$GhRepo/releases/tags/gaon-models" -Headers @{ 'User-Agent' = 'Gaon-Setup' }
+                $parts = @($ghRel.assets | Where-Object { $_.name -like "$($m.file).part*" } | Sort-Object name)
+                if ($parts.Count -gt 0) {
+                    $i = 0
+                    foreach ($pa in $parts) {
+                        $i++
+                        $pf = Join-Path $dl $pa.name
+                        if (-not (Test-Path $pf) -or (Get-Item $pf).Length -ne $pa.size) {
+                            Download $pa.browser_download_url $pf "המודל – חלק $i מתוך $($parts.Count)" $pa.size
+                        }
+                    }
+                    Set-Status 'מחבר את חלקי המודל…'
+                    $out = [IO.File]::Create("$dest.part")
+                    foreach ($pa in $parts) {
+                        $in = [IO.File]::OpenRead((Join-Path $dl $pa.name))
+                        $in.CopyTo($out, 4MB)
+                        $in.Close()
+                        Pump
+                    }
+                    $out.Close()
+                    Move-Item -Force "$dest.part" $dest
+                    $ok = $true
+                } else { Log 'אין עותק של המודל ב-GitHub.' }
+            } catch {
+                Log "העותק ב-GitHub לא זמין: $($_.Exception.Message)"
+                Check-Cancel
+            }
             foreach ($u in $urls) {
+                if ($ok) { break }
                 try {
                     Log "מנסה להוריד מ: $(([uri]$u).Host)"
                     Download $u $dest "המודל $($m.file)" ([int64]($m.gb * 1e9))
