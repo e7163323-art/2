@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>מקליט מסך</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font-family: system-ui, "Segoe UI", Arial, sans-serif;
+    margin: 0; min-height: 100vh;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 1.25rem; padding: 1.5rem;
+    background: #f5f5f7; color: #1a1a1a;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { background: #16181c; color: #f0f0f2; }
+    video { background: #000; }
+  }
+  h1 { font-size: 1.4rem; margin: 0; }
+  .buttons { display: flex; gap: .75rem; flex-wrap: wrap; justify-content: center; }
+  button {
+    font: inherit; font-size: 1rem; padding: .7rem 1.5rem;
+    border: 0; border-radius: .6rem; cursor: pointer;
+    background: #2563eb; color: #fff;
+  }
+  button:disabled { opacity: .45; cursor: default; }
+  button.stop { background: #dc2626; }
+  #status { min-height: 1.4em; font-size: .95rem; opacity: .8; }
+  video { width: min(100%, 720px); border-radius: .6rem; background: #ddd; }
+  a.download {
+    color: #2563eb; font-size: 1rem;
+  }
+  a.download[hidden] { display: none; }
+</style>
+</head>
+<body>
+  <h1>מקליט מסך</h1>
+
+  <div class="buttons">
+    <button id="start">התחל הקלטה</button>
+    <button id="stop" class="stop" disabled>עצור</button>
+  </div>
+
+  <div id="status">בחר "התחל הקלטה" כדי לבחור מסך או חלון.</div>
+
+  <video id="preview" controls hidden></video>
+  <a id="download" class="download" hidden download="recording.webm">הורד את ההקלטה</a>
+
+<script>
+const startBtn = document.getElementById('start');
+const stopBtn = document.getElementById('stop');
+const statusEl = document.getElementById('status');
+const preview = document.getElementById('preview');
+const downloadLink = document.getElementById('download');
+
+let recorder = null;
+let chunks = [];
+let stream = null;
+let lastUrl = null;
+
+if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+  startBtn.disabled = true;
+  statusEl.textContent = 'הדפדפן הזה לא תומך בהקלטת מסך.';
+}
+
+function pickMimeType() {
+  const options = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+  for (const type of options) {
+    if (MediaRecorder.isTypeSupported(type)) return type;
+  }
+  return '';
+}
+
+startBtn.addEventListener('click', async () => {
+  try {
+    stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+  } catch (err) {
+    statusEl.textContent = 'ההקלטה לא התחילה: ' + (err && err.message ? err.message : err);
+    return;
+  }
+
+  if (lastUrl) {
+    URL.revokeObjectURL(lastUrl);
+    lastUrl = null;
+  }
+  preview.hidden = true;
+  preview.removeAttribute('src');
+  downloadLink.hidden = true;
+
+  chunks = [];
+  const mimeType = pickMimeType();
+  recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+
+  recorder.addEventListener('dataavailable', (event) => {
+    if (event.data && event.data.size > 0) chunks.push(event.data);
+  });
+
+  recorder.addEventListener('stop', () => {
+    stream.getTracks().forEach((track) => track.stop());
+    const blob = new Blob(chunks, { type: recorder.mimeType || 'video/webm' });
+    lastUrl = URL.createObjectURL(blob);
+
+    preview.src = lastUrl;
+    preview.hidden = false;
+    downloadLink.href = lastUrl;
+    downloadLink.download = 'recording-' + new Date().toISOString().replace(/[:.]/g, '-') + '.webm';
+    downloadLink.hidden = false;
+
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    statusEl.textContent = 'ההקלטה הסתיימה. אפשר לצפות או להוריד.';
+  });
+
+  // Stopping the share from the browser bar should end the recording too.
+  stream.getVideoTracks()[0].addEventListener('ended', () => {
+    if (recorder && recorder.state !== 'inactive') recorder.stop();
+  });
+
+  recorder.start();
+  startBtn.disabled = true;
+  stopBtn.disabled = false;
+  statusEl.textContent = 'מקליט...';
+});
+
+stopBtn.addEventListener('click', () => {
+  if (recorder && recorder.state !== 'inactive') recorder.stop();
+});
+</script>
+</body>
+</html>
