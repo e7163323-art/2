@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>מקליט מסך</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#fff; --text:#15171a; --muted:#666c75;
+    --line:#e2e5ea; --accent:#2f6fed; --rec:#d8392b;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#14161a; --card:#1d2026; --text:#eceef1; --muted:#a0a6b0;
+      --line:#2c3139; --accent:#5b8cf5; --rec:#e8554a;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#14161a; --card:#1d2026; --text:#eceef1; --muted:#a0a6b0;
+    --line:#2c3139; --accent:#5b8cf5; --rec:#e8554a;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:system-ui,"Segoe UI",Arial,sans-serif;
+    display:flex; justify-content:center; padding:24px 16px;
+  }
+  .wrap{width:100%; max-width:720px}
+  h1{font-size:22px; margin:0 0 4px}
+  p.sub{margin:0 0 18px; color:var(--muted); font-size:14px}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px}
+  .row{display:flex; flex-wrap:wrap; gap:10px; align-items:center}
+  button{
+    font:inherit; font-weight:600; padding:11px 18px; border-radius:10px;
+    border:1px solid var(--line); background:var(--card); color:var(--text); cursor:pointer;
+  }
+  button:disabled{opacity:.45; cursor:not-allowed}
+  button.primary{background:var(--accent); border-color:transparent; color:#fff}
+  button.stop{background:var(--rec); border-color:transparent; color:#fff}
+  label.chk{display:flex; gap:6px; align-items:center; font-size:14px; color:var(--muted)}
+  #status{margin:14px 0 0; font-size:14px; color:var(--muted); min-height:20px}
+  #status.live{color:var(--rec); font-weight:600}
+  video{width:100%; margin-top:14px; background:#000; border-radius:10px; display:none}
+  a.dl{display:none; margin-top:12px; font-weight:600; color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>מקליט מסך</h1>
+  <p class="sub">בחר "התחל הקלטה", סמן את המסך או החלון, וסיים ב"עצור". הקובץ נשמר אצלך במחשב.</p>
+
+  <div class="card">
+    <div class="row">
+      <button id="start" class="primary">● התחל הקלטה</button>
+      <button id="stop" class="stop" disabled>■ עצור ושמור</button>
+      <label class="chk"><input type="checkbox" id="mic"> הקלט גם מיקרופון</label>
+    </div>
+    <p id="status">מוכן.</p>
+    <video id="preview" controls></video>
+    <a id="dl" class="dl" download="">⬇ הורדת הקובץ</a>
+  </div>
+</div>
+
+<script>
+const startBtn = document.getElementById('start');
+const stopBtn  = document.getElementById('stop');
+const micChk   = document.getElementById('mic');
+const statusEl = document.getElementById('status');
+const preview  = document.getElementById('preview');
+const dl       = document.getElementById('dl');
+
+let recorder, chunks = [], tracks = [], timer, startedAt, lastUrl;
+
+function setStatus(text, live){
+  statusEl.textContent = text;
+  statusEl.classList.toggle('live', !!live);
+}
+
+function pickMime(){
+  const options = ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4'];
+  return options.find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
+}
+
+function clock(){
+  const s = Math.floor((Date.now() - startedAt)/1000);
+  const mm = String(Math.floor(s/60)).padStart(2,'0');
+  const ss = String(s%60).padStart(2,'0');
+  setStatus('מקליט… ' + mm + ':' + ss, true);
+}
+
+function cleanup(){
+  clearInterval(timer);
+  tracks.forEach(t => t.stop());
+  tracks = [];
+  startBtn.disabled = false;
+  stopBtn.disabled = true;
+}
+
+startBtn.onclick = async () => {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia){
+    setStatus('הדפדפן לא תומך בהקלטת מסך. נסה Chrome או Edge מעודכנים.');
+    return;
+  }
+  try {
+    const screen = await navigator.mediaDevices.getDisplayMedia({
+      video: { frameRate: 30 },
+      audio: true
+    });
+    const stream = new MediaStream(screen.getTracks());
+
+    if (micChk.checked){
+      try {
+        const mic = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mic.getAudioTracks().forEach(t => stream.addTrack(t));
+      } catch (e) {
+        setStatus('ממשיך בלי מיקרופון (ההרשאה נדחתה).');
+      }
+    }
+
+    tracks = stream.getTracks();
+    chunks = [];
+    const mime = pickMime();
+    recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+
+    recorder.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+
+    recorder.onstop = () => {
+      cleanup();
+      const type = recorder.mimeType || mime || 'video/webm';
+      const blob = new Blob(chunks, { type });
+      if (lastUrl) URL.revokeObjectURL(lastUrl);
+      lastUrl = URL.createObjectURL(blob);
+      const ext = type.includes('mp4') ? 'mp4' : 'webm';
+      const stamp = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+      preview.src = lastUrl;
+      preview.style.display = 'block';
+      dl.href = lastUrl;
+      dl.download = 'הקלטת-מסך-' + stamp + '.' + ext;
+      dl.style.display = 'inline-block';
+      const mb = (blob.size/1048576).toFixed(1);
+      setStatus('ההקלטה הסתיימה (' + mb + ' MB). לחץ "הורדת הקובץ".');
+      dl.click();
+    };
+
+    // עצירה אוטומטית אם המשתמש לוחץ "הפסק שיתוף" בדפדפן
+    screen.getVideoTracks()[0].addEventListener('ended', () => {
+      if (recorder && recorder.state !== 'inactive') recorder.stop();
+    });
+
+    recorder.start(1000);
+    startedAt = Date.now();
+    clock();
+    timer = setInterval(clock, 1000);
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+    dl.style.display = 'none';
+    preview.style.display = 'none';
+  } catch (err) {
+    cleanup();
+    setStatus(err && err.name === 'NotAllowedError' ? 'ההקלטה בוטלה.' : 'שגיאה: ' + (err && err.message || err));
+  }
+};
+
+stopBtn.onclick = () => {
+  if (recorder && recorder.state !== 'inactive') recorder.stop();
+};
+</script>
+</body>
+</html>
